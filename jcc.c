@@ -137,117 +137,148 @@ void jcc_log_cmds(FILE f[static 1], jcc_cmds pcmds[static 1]) {
     fprintf(f, "\n");
 }
 
-#define JCC_log_help() fprintf(stdout,"\
-%s - %s \n\
-A gcc wrapper.\n\
-\n\
-Usage:\n\
-\t%s <command> ...\n\
-\n\
-Commands:\n\
-\n\
-\tbuild     compile the file or list of files\n\
-\tbrun      compile the file(s) and run the executable\n\
-\trun       compile the file(s), run the executable, and remove it\n\
-\tobj       create object files\n\
-\tlib       create a shared or static library\n\
-\thelp      this text\n\
-\n\
-Use %s help <command> for more information.\n\
-Use %s help template for a file.c template.\n\
-\n\
-", JCC_NAME_FULL, JCC_NAME, JCC_NAME, JCC_NAME, JCC_NAME)
-//#end
+void jcc_log_help() {
+    fprintf(
+        stdout,
+        JCC_NAME_FULL " - " JCC_NAME " \n"
+        "A gcc wrapper.\n"
+        "\n"
+        "Usage:\n"
+        "\t"JCC_NAME" <command> ...\n"
+        "\n"
+        "Commands:\n"
+        "\n"
+        "\tbuild     compiles a file or a list of files\n"
+        "\tbrun      compiles file(s) and run the executable\n"
+        "\trun       compiles file(s), run the executable, and remove it\n"
+        "\tobj       creates object file(s)\n"
+        "\tlib       creates a shared or static library\n"
+        "\tdefaults  shows the defaults settings\n"
+        "\tversion   shows the version\n"
+        "\thelp      shows this text\n"
+        "\n"
+        "Use '"JCC_NAME" help <command>' for more information\n"
+        "Use '"JCC_NAME" help template' for a file.c template\n"
+        "\n"
+    );
+}
 
-#define JCC_log_help_build() fprintf(stdout,"\
-Compile the file or list of files\n\
-Usage:\n\
-\t%s build [<name>] <files> [-L <library_path>] [-l <library>]\n\
-\n\
-Options:\n\
-\n\
-\t<name>            Define an output name. If the 'name' is not declared, the output name is the first file name.\n\
-\n\
-\t-l <library>      Same as gcc. Can only be declared after <files>, and can be declared 0 or more times.\n\
-\n\
-\t-L <library_path> Same as gcc. Can only be declared after <files>, and can be declared 0 or more times.\n\
-\n\
-\n\
-", JCC_NAME)
-//#end
-#define JCC_log_help_brun() fprintf(stdout, "\
-Compile the file(s) and run the executable (the same as 'run' but keeps the executable file)\n\
-Usage:\n\
-\t%s brun [<name>] <files> [-L <library_path>] [-l <library>]\n\
-\n\
-Options:\n\
-\n\
-\t<name>            Define an output name. If the 'name' is not declared, the output name is the first file name.\n\
-\n\
-\t-l <library>      Same as gcc. Can only be declared after <files>, and can be declared 0 or more times.\n\
-\n\
-\t-L <library_path> Same as gcc. Can only be declared after <files>, and can be declared 0 or more times.\n\
-\n\
-\n\
-", JCC_NAME)
-//#end
-#define JCC_log_help_run() fprintf(stdout, "\
-Compile the file(s), run the executable, and remove the executable file\n\
-Usage:\n\
-\t%s run [<name>] <files> [-L <library_path>] [-l <library>]\n\
-\n\
-Options:\n\
-\n\
-\t<name>            Define an output name. If the 'name' is not declared, the output name is the first file name.\n\
-\n\
-\t-l <library>      Same as gcc. Can only be declared after <files>, and can be declared 0 or more times.\n\
-\n\
-\t-L <library_path> Same as gcc. Can only be declared after <files>, and can be declared 0 or more times.\n\
-\n\
-\n\
-", JCC_NAME)
-//#end
-#define JCC_log_help_object() fprintf(stdout, "\
-Create object files\n\
-Usage:\n\
-\t%s %s <files>\n\
-\n\
-", JCC_NAME, jcc_strcmds[JCC_CMDT_OBJECT])
-//#end
-#define JCC_log_help_library() fprintf(stdout, "\
-Create a shared or static libary\n\
-Usage:\n\
-\t%s lib shared|static [<name>] <files>\n\
-\n\
-Options:\n\
-\n\
-\t<name>    Define an output name. If the 'name' is not declared, the output name is the first file name.\n\
-\n\
-", JCC_NAME)
-//#end
-#define JCC_log_help_defaults() \
-    fprintf(stdout, "%s defaults\n", JCC_NAME)
-//#end
-#define JCC_log_help_version() \
-    fprintf(stdout, "%s version\n", JCC_NAME)
-//#end
-#define JCC_log_help_template() fprintf(stdout, "\
-Here is an example/template of 'jcc_init.c':\n\
-\n\
-#include \"./jcc.c\"\n\
-\n\
-int main(int argc, char* argv[argc]) {\n\
-    jcc_cmds defaults = jcc_cmds_create(5, (char const*const[]){\n\
-        \"-std=c23\",\n\
-        \"-O2\",\n\
-        \"-Wall\",\n\
-        \"-Wextra\",\n\
-        \"-D_FORTIFY_SOURCE=2\"\n\
-    });\n\
-    return jcc_init(&defaults, argc, argv);\n\
-}\n\
-\n")
-//#end
+void jcc_log_help_build() {
+    fprintf(
+        stdout,
+        "Compiles a file or a list of files\n"
+        "Usage:\n"
+        "\t"JCC_NAME" build [<name>] <files> [-L <library_path>] [-l <library>]\n"
+        "\n"
+        "Options:\n"
+        "\n"
+        "\t<name>\n"
+        "\tDefine an output name. If 'name' is not declared, the output name is the first file name.\n"
+        "\n"
+        "\t-l <library>\n"
+        "\tSame as gcc. Can only be declared after <files>, and can be declared 0 or more times.\n"
+        "\n"
+        "\t-L <library_path>\n"
+        "\tSame as gcc. Can only be declared after <files>, and can be declared 0 or more times.\n"
+        "\n"
+    );
+}
+
+void jcc_log_help_brun() {
+    fprintf(
+        stdout,
+        "Compile file(s) and run the executable (the same as 'run' but keeps the executable file)\n"
+        "Usage:\n"
+        "\t"JCC_NAME" brun [<name>] <files> [-L <library_path>] [-l <library>]\n"
+        "\n"
+        "Options:\n"
+        "\n"
+        "\t<name>\n"
+        "\tDefine an output name. If 'name' is not declared, the output name is the first file name.\n"
+        "\n"
+        "\t-l <library>\n"
+        "\tSame as gcc. Can only be declared after <files>, and can be declared 0 or more times.\n"
+        "\n"
+        "\t-L <library_path>\n"
+        "\tSame as gcc. Can only be declared after <files>, and can be declared 0 or more times.\n"
+        "\n"
+    );
+}
+
+void jcc_log_help_run() {
+    fprintf(
+        stdout,
+        "Compiles file(s), run the executable, and remove it\n"
+        "Usage:\n"
+        "\t"JCC_NAME" run [<name>] <files> [-L <library_path>] [-l <library>]\n"
+        "\n"
+        "Options:\n"
+        "\n"
+        "\t<name>\n"
+        "\tDefine an output name. If 'name' is not declared, the output name is the first file name.\n"
+        "\n"
+        "\t-l <library>\n"
+        "\tSame as gcc. Can only be declared after <files>, and can be declared 0 or more times.\n"
+        "\n"
+        "\t-L <library_path>\n"
+        "\tSame as gcc. Can only be declared after <files>, and can be declared 0 or more times.\n"
+        "\n"
+    );
+}
+
+void jcc_log_help_object() {
+    fprintf(
+        stdout,
+        "Creates object file(s)\n"
+        "Usage:\n"
+        "\t"JCC_NAME" obj <files>\n"
+        "\n"
+        "Only uses the '-c' option\n"
+        "\n"
+    );
+}
+
+void jcc_log_help_library() {
+    fprintf(
+        stdout,
+        "Creates a shared or static library\n"
+        "Usage:\n"
+        "\t"JCC_NAME" lib shared|static [<name>] <files>\n"
+        "\n"
+        "Options:\n"
+        "\n"
+        "\t<name>\n"
+        "\tDefine an output name. If 'name' is not declared, the output name is the first file name.\n"
+        "\n"
+        "shared library:\n"
+        "Compiles object files with '-fpic' and creates the library with '-shared'\n"
+        "\n"
+        "static library:\n"
+        "Compiles object files with '-c' and creates the library with 'ar scr'\n"
+        "\n"
+    );
+}
+
+void jcc_log_help_template() {
+    fprintf(
+        stdout,
+        "Here is an example/template of 'jcc_init.c':\n"
+        "\n"
+        "#include \"./jcc.c\"\n"
+        "\n"
+        "int main(int argc, char* argv[argc]) {\n"
+        "    jcc_cmds defaults = jcc_cmds_create(5, (char const*const[]){\n"
+        "        \"-std=c23\",\n"
+        "        \"-O2\",\n"
+        "        \"-Wall\",\n"
+        "        \"-Wextra\",\n"
+        "        \"-D_FORTIFY_SOURCE=2\"\n"
+        "    });\n"
+        "    return jcc_init(&defaults, argc, argv);\n"
+        "}\n"
+        "\n"
+    );
+}
 
 _Bool jcc_wait_procs(pid_t procs) {
     if (procs == -1) {
@@ -256,20 +287,20 @@ _Bool jcc_wait_procs(pid_t procs) {
     for (;;) {
         int wstatus = 0;
         if (waitpid(procs, &wstatus, 0) < 0) {
-            fprintf(stderr, "could not wait on command (pid %d): %s\n", procs, strerror(errno));
+            fprintf(stderr, "ERROR Could not wait on command (pid %d): %s\n", procs, strerror(errno));
             return (_Bool)0;
         }
         if (WIFEXITED(wstatus)) {
             int exit_status = WEXITSTATUS(wstatus);
             if (exit_status != 0) {
-                fprintf(stderr, "command exited with exit code %d\n", exit_status);
+                fprintf(stderr, "ERROR Command exited with exit code %d\n", exit_status);
                 return (_Bool)0;
             }
 
             break;
         }
         if (WIFSIGNALED(wstatus)) {
-            fprintf(stderr, "command process was terminated\n");
+            fprintf(stderr, "ERROR Command process was terminated\n");
             return (_Bool)0;
         }
     }
@@ -373,8 +404,6 @@ enum jcc_help_types {
     JCC_HELPT_RUN,
     JCC_HELPT_OBJECT,
     JCC_HELPT_LIBRARY,
-    JCC_HELPT_DEFAULTS,
-    JCC_HELPT_VERSION,
     JCC_HELPT_TEMPLATE,
     JCC_HELPT_LEN
 };
@@ -385,8 +414,6 @@ char*const jcc_strhelp[JCC_HELPT_LEN] = {
     [JCC_HELPT_RUN]       = jcc_strcmds[JCC_CMDT_RUN],
     [JCC_HELPT_OBJECT]    = jcc_strcmds[JCC_CMDT_OBJECT],
     [JCC_HELPT_LIBRARY]   = jcc_strcmds[JCC_CMDT_LIBRARY],
-    [JCC_HELPT_DEFAULTS]  = "defaults",
-    [JCC_HELPT_VERSION]   = "version",
     [JCC_HELPT_TEMPLATE]  = "template",
 };
 
@@ -396,34 +423,28 @@ void jcc_help(size_t argc, char*const argv[argc]) {
     for (size_t i = JCC_HELPT_BUILD; i < JCC_HELPT_LEN; i += 1) {
         if (strcmp(help, jcc_strhelp[i]) == 0) {
             if (i == JCC_HELPT_BUILD) {
-                JCC_log_help_build();
-                return;
-            } else if (i == JCC_HELPT_OBJECT) {
-                JCC_log_help_object();
+                jcc_log_help_build();
                 return;
             } else if (i == JCC_HELPT_BRUN) {
-                JCC_log_help_brun();
+                jcc_log_help_brun();
                 return;
             } else if (i == JCC_HELPT_RUN) {
-                JCC_log_help_run();
+                jcc_log_help_run();
                 return;
-            } else if (i == JCC_HELPT_DEFAULTS) {
-                JCC_log_help_defaults();
-                return;
-            } else if (i == JCC_HELPT_VERSION) {
-                JCC_log_help_version();
-                return;
-            } else if (i == JCC_HELPT_TEMPLATE) {
-                JCC_log_help_template();
+            } else if (i == JCC_HELPT_OBJECT) {
+                jcc_log_help_object();
                 return;
             } else if (i == JCC_HELPT_LIBRARY) {
-                JCC_log_help_library();
+                jcc_log_help_library();
+                return;
+            } else if (i == JCC_HELPT_TEMPLATE) {
+                jcc_log_help_template();
                 return;
             }
-            JCC_log_help();
+            jcc_log_help();
         }
     }
-    JCC_log_help();
+    jcc_log_help();
 }
 
 
@@ -1121,7 +1142,7 @@ int jcc_library(
         return jcc_libstatic(cmds, argc-1, &argv[1]);
     }
     fprintf(stderr, "ERROR Bad command format\n");
-    JCC_log_help_library();
+    jcc_log_help_library();
     return EXIT_FAILURE;
 }
 
@@ -1132,66 +1153,66 @@ int jcc_init(
     char*const argv[argc]
 ) {
     if (argc < 2) {
-        JCC_log_help();
+        jcc_log_help();
         return EXIT_SUCCESS;
     }
     char const*const cmd = argv[1];
-    for (int i = JCC_CMDT_HELP; i < JCC_CMDT_LEN; ++i) {
+    for (int i = JCC_CMDT_HELP; i < JCC_CMDT_LEN; i += 1) {
         if (strcmp(cmd, jcc_strcmds[i]) == 0) {
             if (JCC_CMDT_HELP == i) {
-                if (argc - 2 < 1) {
-                    JCC_log_help();
+                if (argc - 3 < 0) {
+                    jcc_log_help();
                 } else {
                     jcc_help(argc - 2, &argv[2]);
                 }
                 return EXIT_SUCCESS;
-
-            } else if (JCC_CMDT_BUILD == i) {
+            }
+            if (JCC_CMDT_BUILD == i) {
                 if (argc - 3 < 0) {
                     fprintf(stderr, "ERROR Bad command format\n");
-                    JCC_log_help_build();
+                    jcc_log_help_build();
                     return EXIT_FAILURE;
                 }
                 return jcc_build(cmds, argc - 2, &argv[2]);
-
-            } else if (JCC_CMDT_BRUN == i) {
+            }
+            if (JCC_CMDT_BRUN == i) {
                 if (argc - 3 < 0) {
                     fprintf(stderr, "ERROR Bad command format\n");
-                    JCC_log_help_brun();
+                    jcc_log_help_brun();
                     return EXIT_FAILURE;
                 }
                 return jcc_brun(cmds, argc - 2, &argv[2]);
-
-            } else if (JCC_CMDT_RUN == i) {
+            }
+            if (JCC_CMDT_RUN == i) {
                 if (argc - 3 < 0) {
                     fprintf(stderr, "ERROR Bad command format\n");
-                    JCC_log_help_run();
+                    jcc_log_help_run();
                     return EXIT_FAILURE;
                 }
                 return jcc_run(cmds, argc - 2, &argv[2]);
-
-            } else if (JCC_CMDT_OBJECT == i) {
+            }
+            if (JCC_CMDT_OBJECT == i) {
                 if (argc - 3 < 0) {
                     fprintf(stderr, "ERROR Bad command format\n");
-                    JCC_log_help_object();
+                    jcc_log_help_object();
                     return EXIT_FAILURE;
                 }
                 return jcc_object(cmds, argc - 2, &argv[2]);
-
-            } else if (JCC_CMDT_LIBRARY) {
+            }
+            if (JCC_CMDT_LIBRARY == i) {
                 if (argc - 4 < 0) {
                     fprintf(stderr, "ERROR Bad command format\n");
-                    JCC_log_help_library();
+                    jcc_log_help_library();
                     return EXIT_FAILURE;
                 }
                 return jcc_library(cmds, argc - 2, &argv[2]);
-
-            } else if (JCC_CMDT_DEFAULTS == i) {
+            }
+            if (JCC_CMDT_DEFAULTS == i) {
                 fprintf(stdout, "%s %s: ", JCC_NAME, jcc_strcmds[JCC_CMDT_DEFAULTS]);
                 jcc_log_cmds(stdout, cmds);
                 return EXIT_SUCCESS;
-
-            } else if (JCC_CMDT_VERSION == i) {
+            }
+            if (JCC_CMDT_VERSION == i) {
                 fprintf(
                     stdout,
                     "%s version: %s\n",
@@ -1204,7 +1225,7 @@ int jcc_init(
         }
     }
     fprintf(stderr, "WARNING Could not found command %s\n\n", cmd);
-    JCC_log_help();
+    jcc_log_help();
     return EXIT_SUCCESS;
 }
 #endif
