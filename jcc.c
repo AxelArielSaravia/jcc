@@ -1021,9 +1021,7 @@ int jcc_libshared(
     char*const argv[argc]
 ) {
     assert(argc > 0);
-
-    jcc_cmds cmds_cpy = {0};
-    jcc_cmds_append_buf(&cmds_cpy, cmds->len, (char const*const*)cmds->buf);
+    size_t def_cmds_len = cmds->len;
 
     char jcc_bname[JCC_BUILD_NAME_LEN] = {0};
     int bnstatus = jcc_set_bname(argv[0], jcc_bname);
@@ -1087,27 +1085,26 @@ int jcc_libshared(
             arg[len-1] = 'o';
         }
     }
-
-    jcc_cmds_append_buf(&cmds_cpy, 3, (char const*const[]){
+    cmds->len = def_cmds_len;
+    jcc_cmds_append_buf(cmds, 3, (char const*const[]){
         "-shared",
         "-o",
         jcc_bname
     });
-    jcc_cmds_append_buf(&cmds_cpy, args_len, (char const*const*)args);
+    jcc_cmds_append_buf(cmds, args_len, (char const*const*)args);
+    jcc_cmds_append_null(cmds);
     #ifdef JCC_LOGS_
         jcc_log_cmds(stdout, &cmds_cpy);
     #endif
-    if (!jcc_exec_cmds(&cmds_cpy)) {
+    if (!jcc_exec_cmds(cmds)) {
         goto defer;
     }
 
     jcc_cmds_free(cmds);
-    jcc_cmds_free(&cmds_cpy);
     return EXIT_SUCCESS;
 
     defer:
     jcc_cmds_free(cmds);
-    jcc_cmds_free(&cmds_cpy);
     return EXIT_FAILURE;
 }
 
