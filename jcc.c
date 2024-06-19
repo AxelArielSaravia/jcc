@@ -12,7 +12,7 @@
 #include <errno.h>
 #include <unistd.h>
 
-//#define JCC_LOGS_
+#define JCC_LOGS_
 #define JCC_VERSION     "0.0.1"
 #define JCC_COMPILER    "gcc"
 
@@ -53,6 +53,9 @@ void jcc_cmds_append_buf(
         jcc_cmds cmds = *pcmds;
         // + a nullptr item that must exist at the end of the buffer
         if (cmds.len + append_len + 1 > cmds.cap) {
+            if (cmds.cap < JCC_BUF_INIT_CAP) {
+                cmds.cap = JCC_BUF_INIT_CAP;
+            }
             while (cmds.len + append_len + 1 > cmds.cap) {
                 cmds.cap = cmds.cap << 1;
             }
@@ -95,12 +98,14 @@ enum jcc_cmd_type {
     JCC_CMDT_HELP,
     //Build the executable
     JCC_CMDT_BUILD,
-    //Create object files
-    JCC_CMDT_OBJ,
     //Build the executables and run the program
     JCC_CMDT_BRUN,
     //Build the executables, run the program and delete the executables
     JCC_CMDT_RUN,
+    //Create object files
+    JCC_CMDT_OBJECT,
+    //make libraries
+    JCC_CMDT_LIBRARY,
     //Show the defaults
     JCC_CMDT_DEFAULTS,
     JCC_CMDT_VERSION,
@@ -108,13 +113,14 @@ enum jcc_cmd_type {
 };
 
 char*const jcc_strcmds[JCC_CMDT_LEN] = {
-    [JCC_CMDT_HELP]     = "help",
-    [JCC_CMDT_BUILD]    = "build",
-    [JCC_CMDT_OBJ]      = "obj",
-    [JCC_CMDT_BRUN]     = "brun",
-    [JCC_CMDT_RUN]      = "run",
-    [JCC_CMDT_DEFAULTS] = "defaults",
-    [JCC_CMDT_VERSION]  = "version"
+    [JCC_CMDT_HELP]      = "help",
+    [JCC_CMDT_BUILD]     = "build",
+    [JCC_CMDT_BRUN]      = "brun",
+    [JCC_CMDT_RUN]       = "run",
+    [JCC_CMDT_OBJECT]    = "obj",
+    [JCC_CMDT_LIBRARY]   = "lib",
+    [JCC_CMDT_DEFAULTS]  = "defaults",
+    [JCC_CMDT_VERSION]   = "version"
 };
 
 void jcc_log_cmds(FILE f[static 1], jcc_cmds pcmds[static 1]) {
@@ -130,23 +136,6 @@ void jcc_log_cmds(FILE f[static 1], jcc_cmds pcmds[static 1]) {
     fprintf(f, "\n");
 }
 
-#define JCC_log_defaults_template() fprintf(stdout, "\
-Here is an example/template of 'jcc_init.c':\n\
-#include \"./jcc.c\"\n\
-\n\
-int main(int argc, char* argv[argc]) {\n\
-    char const*const defaults[] = {\n\
-        \"-std=c\23\",\n\
-        \"-O2\",\n\
-        \"-Wall\",\n\
-        \"-Wextra\",\n\
-        \"-D_FORTIFY_SOURCE=2\"\n\
-    };\n\
-    return jcc_init(defaults, argc, argv);\n\
-}\n\
-\n")
-//#end
-
 #define JCC_log_help() fprintf(stdout,"\
 %s - %s \n\
 A gcc wrapper.\n\
@@ -160,6 +149,7 @@ Commands:\n\
 \tbrun      compile the file(s) and run the executable\n\
 \trun       compile the file(s), run the executable, and remove it\n\
 \tobj       create object files\n\
+\tlib       create a shared or static library\n\
 \thelp      this text\n\
 \n\
 Use %s help <command> for more information.\n\
@@ -171,18 +161,15 @@ Use %s help template for a file.c template.\n\
 #define JCC_log_help_build() fprintf(stdout,"\
 Compile the file or list of files\n\
 Usage:\n\
-\t%s build <files> [-o name] [-L library_path] [-l library]\n\
+\t%s build [<name>] <files> [-L <library_path>] [-l <library>]\n\
 \n\
 Options:\n\
 \n\
-\t-o name\n\
-\t\tdefine an output name. It can be declared 0 or 1 times. If the '-o' option is not declared, the output name is gets from the first file.\n\
+\t<name>            Define an output name. If the 'name' is not declared, the output name is the first file name.\n\
 \n\
-\t-l library\n\
-\t\tsame as gcc. Can only be declared after <files>, and can be declared 0 or more times.\n\
+\t-l <library>      Same as gcc. Can only be declared after <files>, and can be declared 0 or more times.\n\
 \n\
-\t-L library_path\n\
-\t\tsame as gcc. Can only be declared after <files>, and can be declared 0 or more times.\n\
+\t-L <library_path> Same as gcc. Can only be declared after <files>, and can be declared 0 or more times.\n\
 \n\
 \n\
 ", JCC_NAME)
@@ -190,18 +177,15 @@ Options:\n\
 #define JCC_log_help_brun() fprintf(stdout, "\
 Compile the file(s) and run the executable (the same as 'run' but keeps the executable file)\n\
 Usage:\n\
-\t%s brun <files> [-o name] [-L library_path] [-l library]\n\
+\t%s brun [<name>] <files> [-L <library_path>] [-l <library>]\n\
 \n\
 Options:\n\
 \n\
-\t-o name\n\
-\t\tdefine an output name. It can be declared 0 or 1 times. If the '-o' option is not declared, the output name is gets from the first file.\n\
+\t<name>            Define an output name. If the 'name' is not declared, the output name is the first file name.\n\
 \n\
-\t-l library\n\
-\t\tsame as gcc. Can only be declared after <files>, and can be declared 0 or more times.\n\
+\t-l <library>      Same as gcc. Can only be declared after <files>, and can be declared 0 or more times.\n\
 \n\
-\t-L library_path\n\
-\t\tsame as gcc. Can only be declared after <files>, and can be declared 0 or more times.\n\
+\t-L <library_path> Same as gcc. Can only be declared after <files>, and can be declared 0 or more times.\n\
 \n\
 \n\
 ", JCC_NAME)
@@ -209,35 +193,34 @@ Options:\n\
 #define JCC_log_help_run() fprintf(stdout, "\
 Compile the file(s), run the executable, and remove the executable file\n\
 Usage:\n\
-\t%s run <files> [-o name] [-L library_path] [-l library]\n\
+\t%s run [<name>] <files> [-L <library_path>] [-l <library>]\n\
 \n\
 Options:\n\
 \n\
-\t-o name\n\
-\t\tdefine an output name. It can be declared 0 or 1 times. If the '-o' option is not declared, the output name is gets from the first file.\n\
+\t<name>            Define an output name. If the 'name' is not declared, the output name is the first file name.\n\
 \n\
-\t-l library\n\
-\t\tsame as gcc. Can only be declared after <files>, and can be declared 0 or more times.\n\
+\t-l <library>      Same as gcc. Can only be declared after <files>, and can be declared 0 or more times.\n\
 \n\
-\t-L library_path\n\
-\t\tsame as gcc. Can only be declared after <files>, and can be declared 0 or more times.\n\
+\t-L <library_path> Same as gcc. Can only be declared after <files>, and can be declared 0 or more times.\n\
 \n\
 \n\
 ", JCC_NAME)
 //#end
-#define JCC_log_help_obj() fprintf(stdout, "\
+#define JCC_log_help_object() fprintf(stdout, "\
 Create object files\n\
 Usage:\n\
-\t%s obj <files> [-L library_path] [-l library]\n\
+\t%s %s <files>\n\
+\n\
+", JCC_NAME, jcc_strcmds[JCC_CMDT_OBJECT])
+//#end
+#define JCC_log_help_library() fprintf(stdout, "\
+Create a shared or static libary\n\
+Usage:\n\
+\t%s lib shared|static [<name>] <files>\n\
 \n\
 Options:\n\
 \n\
-\t-l library\n\
-\t\tsame as gcc. Can only be declared after <files>, and can be declared 0 or more times.\n\
-\n\
-\t-L library_path\n\
-\t\tsame as gcc. Can only be declared after <files>, and can be declared 0 or more times.\n\
-\n\
+\t<name>    Define an output name. If the 'name' is not declared, the output name is the first file name.\n\
 \n\
 ", JCC_NAME)
 //#end
@@ -254,7 +237,7 @@ Here is an example/template of 'jcc_init.c':\n\
 \n\
 int main(int argc, char* argv[argc]) {\n\
     jcc_cmds defaults = jcc_cmds_create(5, (char const*const[]){\n\
-        \"-std=c\",\n\
+        \"-std=c23\",\n\
         \"-O2\",\n\
         \"-Wall\",\n\
         \"-Wextra\",\n\
@@ -385,9 +368,10 @@ _Bool jcc_is_ext(char const* file_path, char const* ext) {
 typedef enum jcc_help_types jcc_help_types;
 enum jcc_help_types {
     JCC_HELPT_BUILD,
-    JCC_HELPT_OBJ,
     JCC_HELPT_BRUN,
     JCC_HELPT_RUN,
+    JCC_HELPT_OBJECT,
+    JCC_HELPT_LIBRARY,
     JCC_HELPT_DEFAULTS,
     JCC_HELPT_VERSION,
     JCC_HELPT_TEMPLATE,
@@ -395,13 +379,14 @@ enum jcc_help_types {
 };
 
 char*const jcc_strhelp[JCC_HELPT_LEN] = {
-    [JCC_HELPT_BUILD]    = "build",
-    [JCC_HELPT_OBJ]      = "obj",
-    [JCC_HELPT_BRUN]     = "brun",
-    [JCC_HELPT_RUN]      = "run",
-    [JCC_HELPT_DEFAULTS] = "defaults",
-    [JCC_HELPT_VERSION]  = "version",
-    [JCC_HELPT_TEMPLATE] = "template",
+    [JCC_HELPT_BUILD]     = jcc_strcmds[JCC_CMDT_BUILD],
+    [JCC_HELPT_BRUN]      = jcc_strcmds[JCC_CMDT_BRUN],
+    [JCC_HELPT_RUN]       = jcc_strcmds[JCC_CMDT_RUN],
+    [JCC_HELPT_OBJECT]    = jcc_strcmds[JCC_CMDT_OBJECT],
+    [JCC_HELPT_LIBRARY]   = jcc_strcmds[JCC_CMDT_LIBRARY],
+    [JCC_HELPT_DEFAULTS]  = "defaults",
+    [JCC_HELPT_VERSION]   = "version",
+    [JCC_HELPT_TEMPLATE]  = "template",
 };
 
 void jcc_help(size_t argc, char*const argv[argc]) {
@@ -412,8 +397,8 @@ void jcc_help(size_t argc, char*const argv[argc]) {
             if (i == JCC_HELPT_BUILD) {
                 JCC_log_help_build();
                 return;
-            } else if (i == JCC_HELPT_OBJ) {
-                JCC_log_help_obj();
+            } else if (i == JCC_HELPT_OBJECT) {
+                JCC_log_help_object();
                 return;
             } else if (i == JCC_HELPT_BRUN) {
                 JCC_log_help_brun();
@@ -430,6 +415,9 @@ void jcc_help(size_t argc, char*const argv[argc]) {
             } else if (i == JCC_HELPT_TEMPLATE) {
                 JCC_log_help_template();
                 return;
+            } else if (i == JCC_HELPT_LIBRARY) {
+                JCC_log_help_library();
+                return;
             }
             JCC_log_help();
         }
@@ -437,20 +425,18 @@ void jcc_help(size_t argc, char*const argv[argc]) {
     JCC_log_help();
 }
 
+
+
 typedef enum jcc_berror_type jcc_berror_type;
 enum jcc_berror_type {
     JCC_BERROR_NONE,
-    JCC_BERROR_OUTOPT_MORE,
-    JCC_BERROR_OUTOPT_EMPTY,
-    JCC_BERROR_LPOPT_BEFORE,
     JCC_BERROR_LPOPT_EMPTY,
-    JCC_BERROR_LOPT_BEFORE,
     JCC_BERROR_LOPT_EMPTY,
-    JCC_BERROR_FILE_OUTPOS,
     JCC_BERROR_FILE_EXT,
     JCC_BERROR_FILE_NOEXIST,
-    JCC_BERROR_FILES_EMPTY,
+    JCC_BERROR_NOFILES,
     JCC_BERROR_NAME_TOOLARGE,
+    JCC_BERROR_OPTION_INVALID,
     JCC_BERROR_LEN
 };
 
@@ -467,50 +453,10 @@ void jcc_log_berror(
 ) {
     switch (berr.type) {
         case JCC_BERROR_NONE: break;
-        case JCC_BERROR_OUTOPT_MORE: {
-            fprintf(
-                stderr,
-                "%s %s: ERROR Must not set more than ones the option '-o'\nSee '%s help %s'\n",
-                JCC_NAME,
-                jcc_strcmds[cmd],
-                JCC_NAME,
-                jcc_strcmds[cmd]
-            );
-        } break;
-        case JCC_BERROR_OUTOPT_EMPTY: {
-            fprintf(
-                stderr,
-                "%s %s: ERROR It founds an empty '-o' option at the end.\nSee '%s help %s'\n",
-                JCC_NAME,
-                jcc_strcmds[cmd],
-                JCC_NAME,
-                jcc_strcmds[cmd]
-            );
-        } break;
-        case JCC_BERROR_LOPT_BEFORE: {
-            fprintf(
-                stderr,
-                "%s %s: ERROR The option '-l' must be set after <files>.\nSee '%s help %s'\n",
-                JCC_NAME,
-                jcc_strcmds[cmd],
-                JCC_NAME,
-                jcc_strcmds[cmd]
-            );
-        } break;
         case JCC_BERROR_LOPT_EMPTY: {
             fprintf(
                 stderr,
                 "%s %s: ERROR It founds an empty '-l' option at the end.\nSee '%s help %s'\n",
-                JCC_NAME,
-                jcc_strcmds[cmd],
-                JCC_NAME,
-                jcc_strcmds[cmd]
-            );
-        } break;
-        case JCC_BERROR_LPOPT_BEFORE: {
-            fprintf(
-                stderr,
-                "%s %s: ERROR The option '-L' must be set after <files>.\nSee '%s help %s'\n",
                 JCC_NAME,
                 jcc_strcmds[cmd],
                 JCC_NAME,
@@ -523,17 +469,6 @@ void jcc_log_berror(
                 "%s %s: ERROR It found an empty '-L' option at the end.\nSee '%s help %s'\n",
                 JCC_NAME,
                 jcc_strcmds[cmd],
-                JCC_NAME,
-                jcc_strcmds[cmd]
-            );
-        } break;
-        case JCC_BERROR_FILE_OUTPOS: {
-            fprintf(
-                stderr,
-                "%s %s: ERROR Its found '%s', thats maybe is a <file>, outside <files> section.\nSee '%s help %s'\n",
-                JCC_NAME,
-                jcc_strcmds[cmd],
-                argv[berr.argv_i],
                 JCC_NAME,
                 jcc_strcmds[cmd]
             );
@@ -557,7 +492,7 @@ void jcc_log_berror(
                 argv[berr.argv_i]
             );
         } break;
-        case JCC_BERROR_FILES_EMPTY: {
+        case JCC_BERROR_NOFILES: {
             fprintf(
                 stderr,
                 "%s %s: ERROR Could not found <files>\nSee '%s help %s'\n",
@@ -576,69 +511,122 @@ void jcc_log_berror(
                 argv[berr.argv_i]
             );
         } break;
+        case JCC_BERROR_OPTION_INVALID: {
+            fprintf(
+                stderr,
+                "%s %s: ERROR Option '%s' is not allow\n", 
+                JCC_NAME,
+                jcc_strcmds[JCC_CMDT_OBJECT],
+                argv[berr.argv_i]
+            );
+        } break;
+
         default: assert(0 && "unreachable");
     }
 }
 
 #define JCC_BUILD_NAME_LEN 256
 
+typedef int set_bname_res;
+#define JCC_BNAME_FILE              1
+#define JCC_BNAME_EXIST             0
+#define JCC_BNAME_ERR_NOFILES       -1
+#define JCC_BNAME_ERR_TOOLARGE      -2
+#define JCC_BNAME_ERR_FILENOEXIST   -3
+
+set_bname_res jcc_set_bname(char const name[static 1], char bname[static 1]) {
+    if (strncmp(name, "-", 1) == 0) {
+        return JCC_BNAME_ERR_NOFILES;
+    }
+    if (!jcc_is_ext(name, ".c") && !jcc_is_ext(name, ".o")) {
+        if (strlen(name)+1 > JCC_BUILD_NAME_LEN) {
+            return JCC_BNAME_ERR_TOOLARGE;
+        }
+        strcpy(bname, name);
+        return JCC_BNAME_EXIST;
+    }
+    if (!jcc_file_exist(name)) {
+        return JCC_BNAME_ERR_FILENOEXIST;
+    }
+    size_t name_len = strlen(name);
+    if (name_len+1 > JCC_BUILD_NAME_LEN) {
+        return JCC_BNAME_ERR_TOOLARGE;
+    }
+    strncpy(bname, name, name_len - 2);
+    return JCC_BNAME_FILE;
+}
+
+jcc_berror jcc_bname_error(int bnstatus) {
+    switch (bnstatus) {
+        case JCC_BNAME_ERR_NOFILES:
+            return (jcc_berror){.type=JCC_BERROR_NOFILES};
+        case JCC_BNAME_ERR_TOOLARGE:
+            return (jcc_berror){
+                .type=JCC_BERROR_NAME_TOOLARGE,
+                .argv_i=0
+            };
+        case JCC_BNAME_ERR_FILENOEXIST:
+            return (jcc_berror){
+                .type=JCC_BERROR_FILE_NOEXIST,
+                .argv_i=0
+            };
+        default: assert(0 && "unrechable");
+    }
+}
+
 //Append all args to the command dynamic array
 //General format:
-//  SOFT_NAME COMMAND [-o name] <files> [-l library][-L library_path]
+//  SOFT_NAME COMMAND [name] <files> [-l library][-L library_path]
 //The rules are:
-//  - The option -o can appears in any position, 0 or 1 times. The next arg
-//    must be the 'output_name'. If -o does not exist, the first <file> becomes
-//    the 'output_name'.
+//  - The option 'name' is the first argument. If 'name' does not exist, the
+//    first <file> becomes the 'output_name'.
 //  - The option -l and -L must appears at the end, 0 or more times.
-//  - The <files> must be a section, that can appears after or before the
-//    option -o, but never after the options -l and -L.
+//  - The <files> must be a section, that can never appears after the options -l and -L.
 jcc_berror jcc_general_cmds_build(
     char jcc_bname[static 1],
     jcc_cmds cmds[static 1],
     int argc,
     char*const argv[argc]
 ) {
-    _Bool start_files = 0;
-    _Bool end_files = 0;
-    _Bool option_output = 0;
+    //name
+    int bnstatus = jcc_set_bname(argv[0], jcc_bname);
+    if (bnstatus < 0) {
+        return jcc_bname_error(bnstatus);
+    }
+    int i = 0;
+    if (bnstatus == JCC_BNAME_EXIST) {
+        i += 1;
+    }
+    jcc_cmds_append_buf(cmds, 2, (char const*[]){"-o", jcc_bname});
 
-    for (int i = 0; i < argc; i += 1) {
+    //files
+    _Bool files_exist = (_Bool)0;
+    while (i < argc && strncmp(argv[i], "-", 1) != 0) {
         char*const arg = argv[i];
-        if (strcmp(arg, "-o") == 0) {
-            if (option_output) {
-                return (jcc_berror){
-                    .type=JCC_BERROR_OUTOPT_MORE,
-                    .argv_i=i
-                };
-            }
-            if (i + 1 == argc) {
-                return (jcc_berror){
-                    .type=JCC_BERROR_OUTOPT_EMPTY,
-                    .argv_i=i
-                };
-            }
-            i += 1;
-            option_output = 1;
-            if (strlen(argv[i]) < JCC_BUILD_NAME_LEN - 1) {
-                strcpy(jcc_bname, argv[i]);
-            } else {
-                return (jcc_berror){
-                    .type=JCC_BERROR_NAME_TOOLARGE,
-                    .argv_i=i,
-                };
-            }
-            jcc_cmds_append_buf(cmds, 2, (char const*[]){"-o", jcc_bname});
-            if (start_files) {
-                end_files = 1;
-            }
-        } else if (strncmp(arg, "-L", 2) == 0) {
-            if (!start_files) {
-                return (jcc_berror){
-                    .type=JCC_BERROR_LPOPT_BEFORE,
-                    .argv_i=i
-                };
-            }
-            end_files = 1;
+        if (!jcc_is_ext(arg, ".c") && !jcc_is_ext(arg, ".o")) {
+            return (jcc_berror){
+                .type=JCC_BERROR_FILE_EXT,
+                .argv_i=i
+            };
+        }
+        if (!jcc_file_exist(arg)) {
+            return (jcc_berror){
+                .type=JCC_BERROR_FILE_NOEXIST,
+                .argv_i=i
+            };
+        }
+
+        jcc_cmds_append_item(cmds, arg);
+        files_exist = (_Bool)1;
+    }
+    if (!files_exist) {
+        return (jcc_berror){.type=JCC_BERROR_NOFILES};
+    }
+
+    //options -L, -l
+    while (i < argc) {
+        char*const arg = argv[i];
+        if (strncmp(arg, "-L", 2) == 0) {
             if (strlen(arg) > 2) {
                 jcc_cmds_append_item(cmds, arg);
             } else {
@@ -651,15 +639,9 @@ jcc_berror jcc_general_cmds_build(
                 i += 1;
                 jcc_cmds_append_buf(cmds, 2, (char const*[]){"-L", argv[i]});
             }
+            i += 1;
 
         } else if (strncmp(arg, "-l", 2) == 0) {
-            if (!start_files) {
-                return (jcc_berror){
-                    .type=JCC_BERROR_LOPT_BEFORE,
-                    .argv_i=i
-                };
-            }
-            end_files = 1;
             if (strlen(arg) > 2) {
                 jcc_cmds_append_item(cmds, arg);
             } else {
@@ -672,47 +654,13 @@ jcc_berror jcc_general_cmds_build(
                 i += 1;
                 jcc_cmds_append_buf(cmds, 2, (char const*[]){"-l", argv[i]});
             }
+            i += 1;
         } else {
-            if (end_files) {
-                return (jcc_berror){
-                    .type=JCC_BERROR_FILE_OUTPOS,
-                    .argv_i=i
-                };
-            }
-            if (!jcc_is_ext(arg, ".c") && !jcc_is_ext(arg, ".o")) {
-                return (jcc_berror){
-                    .type=JCC_BERROR_FILE_EXT,
-                    .argv_i=i
-                };
-            }
-            if (!jcc_file_exist(arg)) {
-                return (jcc_berror){
-                    .type=JCC_BERROR_FILE_NOEXIST,
-                    .argv_i=i
-                };
-            }
-
-            jcc_cmds_append_item(cmds, arg);
-            start_files = 1;
-
-            if (!option_output && jcc_bname[0] == '\0') {
-                size_t arg_len = strlen(arg);
-                if (arg_len-1 > JCC_BUILD_NAME_LEN) {
-                    return (jcc_berror){
-                        .type=JCC_BERROR_NAME_TOOLARGE,
-                        .argv_i=i
-                    };
-                }
-                strncpy(jcc_bname, arg, arg_len - 2);
-            }
+            return (jcc_berror){
+                .type=JCC_BERROR_OPTION_INVALID,
+                .argv_i=i,
+            };
         }
-    }
-    if (!start_files) {
-        return (jcc_berror){.type=JCC_BERROR_FILES_EMPTY, .argv_i=-1};
-    }
-    if (!option_output) {
-        assert(jcc_bname[0] != '\0' && "ERROR The program do not catch any output name");
-        jcc_cmds_append_buf(cmds, 2, (char const*[]){"-o", jcc_bname});
     }
     return (jcc_berror){.type=JCC_BERROR_NONE, .argv_i=-1};
 }
@@ -722,88 +670,36 @@ jcc_berror jcc_obj_cmds_build(
     int argc,
     char*const argv[argc]
 ) {
+    _Bool files_exist = (_Bool)0;
     jcc_cmds_append_item(cmds, "-c");
-
-    _Bool start_files = 0;
-    _Bool end_files = 0;
 
     for (int i = 0; i < argc; i += 1) {
         char*const arg = argv[i];
-        if (strncmp(arg, "-L", 2) == 0) {
-            if (!start_files) {
-                return (jcc_berror){
-                    .type=JCC_BERROR_LPOPT_BEFORE,
-                    .argv_i=i
-                };
-            }
-            end_files = 1;
-            if (strlen(arg) > 2) {
-                jcc_cmds_append_item(cmds, arg);
-            } else {
-                if (i + 1 == argc) {
-                    return (jcc_berror){
-                        .type=JCC_BERROR_LPOPT_EMPTY,
-                        .argv_i=i
-                    };
-                }
-                i += 1;
-                jcc_cmds_append_buf(cmds, 2, (char const*[]){"-L", argv[i]});
-            }
-
-        } else if (strncmp(arg, "-l", 2) == 0) {
-            if (!start_files) {
-                return (jcc_berror){
-                    .type=JCC_BERROR_LOPT_BEFORE,
-                    .argv_i=i
-                };
-            }
-            end_files = 1;
-            if (strlen(arg) > 2) {
-                jcc_cmds_append_item(cmds, arg);
-            } else {
-                if (i + 1 == argc) {
-                    return (jcc_berror){
-                        .type=JCC_BERROR_LOPT_EMPTY,
-                        .argv_i=i
-                    };
-                }
-                i += 1;
-                jcc_cmds_append_buf(cmds, 2, (char const*[]){"-l", argv[i]});
-            }
-        } else {
-            if (end_files) {
-                return (jcc_berror){
-                    .type=JCC_BERROR_FILE_OUTPOS,
-                    .argv_i=i
-                };
-            }
-            if (!jcc_is_ext(arg, ".c") && !jcc_is_ext(arg, ".o")) {
-                return (jcc_berror){
-                    .type=JCC_BERROR_FILE_EXT,
-                    .argv_i=i
-                };
-            }
-            if (!jcc_file_exist(arg)) {
-                return (jcc_berror){
-                    .type=JCC_BERROR_FILE_NOEXIST,
-                    .argv_i=i
-                };
-            }
-
-            jcc_cmds_append_item(cmds, arg);
-            start_files = 1;
+        if (strncmp(arg, "-", 1) == 0) {
+            return (jcc_berror){
+                .type=JCC_BERROR_OPTION_INVALID,
+                .argv_i=i
+            };
         }
+        if (!jcc_is_ext(arg, ".c") && !jcc_is_ext(arg, ".o")) {
+            return (jcc_berror){
+                .type=JCC_BERROR_FILE_EXT,
+                .argv_i=i
+            };
+        }
+        if (!jcc_file_exist(arg)) {
+            return (jcc_berror){
+                .type=JCC_BERROR_FILE_NOEXIST,
+                .argv_i=i
+            };
+        }
+        files_exist = (_Bool)1;
+        jcc_cmds_append_item(cmds, arg);
     }
-    if (!start_files) {
-        return (jcc_berror){
-            .type=JCC_BERROR_FILES_EMPTY,
-            .argv_i=-1
-        };
+    if (!files_exist) {
+        return (jcc_berror){.type=JCC_BERROR_NOFILES};
     }
-    return (jcc_berror){
-        .type=JCC_BERROR_NONE,
-        .argv_i=-1
-    };
+    return (jcc_berror){.type=JCC_BERROR_NONE};
 }
 
 size_t jcc_get_defaults_len(char const*const defaults[static 1]) {
@@ -815,6 +711,7 @@ size_t jcc_get_defaults_len(char const*const defaults[static 1]) {
     return acc;
 }
 
+//we asume that there is at least 1 args
 //returns EXIT_SUCCESS or EXIT_FAILURE
 int jcc_build(
     jcc_cmds cmds[static 1],
@@ -829,20 +726,24 @@ int jcc_build(
             jcc_log_cmds(stdout, cmds);
         #endif
         jcc_log_berror(berr, JCC_CMDT_BUILD, argv);
-        jcc_cmds_free(cmds);
-        return EXIT_FAILURE;
+        goto defer;
     }
     #ifdef JCC_LOGS_
         jcc_log_cmds(stdout, cmds);
     #endif
 
     if (!jcc_exec_cmds(cmds)) {
-        return EXIT_FAILURE;
+        goto defer;
     }
     jcc_cmds_free(cmds);
     return EXIT_SUCCESS;
+
+    defer:
+    jcc_cmds_free(cmds);
+    return EXIT_FAILURE;
 }
 
+//we asume that there is at least 1 args
 //returns EXIT_SUCCESS or EXIT_FAILURE
 int jcc_brun(
     jcc_cmds cmds[static 1],
@@ -858,15 +759,14 @@ int jcc_brun(
             jcc_log_cmds(stdout, cmds);
         #endif
         jcc_log_berror(berr, JCC_CMDT_BUILD, argv);
-        jcc_cmds_free(cmds);
-        return EXIT_FAILURE;
+        goto defer;
     }
     #ifdef JCC_LOGS_
         jcc_log_cmds(stdout, cmds);
     #endif
 
     if (!jcc_exec_cmds(cmds)) {
-        return EXIT_FAILURE;
+        goto defer;
     }
 
     if (!strchr(jcc_bname, '/')) {
@@ -878,7 +778,7 @@ int jcc_brun(
                 JCC_CMDT_BUILD,
                 argv
             );
-            return EXIT_FAILURE;
+            goto defer;
         }
         memmove(&jcc_bname[2], jcc_bname, sizeof *jcc_bname + jcc_bname_len);
         jcc_bname[0] = '.';
@@ -894,12 +794,17 @@ int jcc_brun(
     #endif
 
     if (!jcc_exec_cmds(cmds)) {
-        return EXIT_FAILURE;
+        goto defer;
     }
     jcc_cmds_free(cmds);
     return EXIT_SUCCESS;
+
+    defer:
+    jcc_cmds_free(cmds);
+    return EXIT_FAILURE;
 }
 
+//we asume that there is at least 1 args
 //returns EXIT_SUCCESS or EXIT_FAILURE
 int jcc_run(
     jcc_cmds cmds[static 1],
@@ -915,16 +820,14 @@ int jcc_run(
             jcc_log_cmds(stdout, cmds);
         #endif
         jcc_log_berror(berr, JCC_CMDT_BUILD, argv);
-        jcc_cmds_free(cmds);
-        exit(1);
-        return EXIT_FAILURE;
+        goto defer;
     }
     #ifdef JCC_LOGS_
         jcc_log_cmds(stdout, cmds);
     #endif
 
     if (!jcc_exec_cmds(cmds)) {
-        return EXIT_FAILURE;
+        goto defer;
     }
 
     if (!strchr(jcc_bname, '/')) {
@@ -936,7 +839,7 @@ int jcc_run(
                 JCC_CMDT_BUILD,
                 argv
             );
-            return EXIT_FAILURE;
+            goto defer;
         }
         memmove(&jcc_bname[2], jcc_bname, sizeof *jcc_bname + jcc_bname_len);
         jcc_bname[0] = '.';
@@ -952,7 +855,7 @@ int jcc_run(
     #endif
 
     if (!jcc_exec_cmds(cmds)) {
-        return EXIT_FAILURE;
+        goto defer;
     }
 
     cmds->len = 0;
@@ -965,14 +868,20 @@ int jcc_run(
     #endif
 
     if (!jcc_exec_cmds(cmds)) {
-        return EXIT_FAILURE;
+        goto defer;
     }
     jcc_cmds_free(cmds);
     return EXIT_SUCCESS;
+
+    defer:
+    jcc_cmds_free(cmds);
+    return EXIT_FAILURE;
+
 }
 
+//we asume that there is at least 1 args
 //returns EXIT_SUCCESS or EXIT_FAILURE
-int jcc_obj(
+int jcc_object(
     jcc_cmds cmds[static 1],
     int argc,
     char*const argv[argc]
@@ -984,16 +893,233 @@ int jcc_obj(
             jcc_log_cmds(stdout, cmds);
         #endif
         jcc_log_berror(berr, JCC_CMDT_BUILD, argv);
-        jcc_cmds_free(cmds);
-        return EXIT_SUCCESS;
+        goto defer;
     }
     #ifdef JCC_LOGS_
         jcc_log_cmds(stdout, cmds);
     #endif
     if (!jcc_exec_cmds(cmds)) {
-        return EXIT_FAILURE;
+        goto defer;
     }
+    jcc_cmds_free(cmds);
     return EXIT_SUCCESS;
+    defer:
+    jcc_cmds_free(cmds);
+    return EXIT_FAILURE;
+}
+
+//returns EXIT_SUCCESS or EXIT_FAILURE
+int jcc_libstatic(
+    jcc_cmds cmds[static 1],
+    int argc,
+    char*const argv[argc]
+) {
+    assert(argc > 0);
+    char jcc_bname[JCC_BUILD_NAME_LEN] = {0};
+    int bnstatus = jcc_set_bname(argv[0], jcc_bname);
+    if (bnstatus < 0) {
+        #ifdef JCC_LOGS_
+            jcc_log_cmds(stdout, cmds);
+        #endif
+        jcc_log_berror(
+            jcc_bname_error(bnstatus),
+            JCC_CMDT_LIBRARY,
+            argv
+        );
+        goto defer;
+    }
+    //set the '.a' at the end
+    if (strlen(jcc_bname) + 3 > JCC_BUILD_NAME_LEN) {
+        jcc_log_berror(
+            jcc_bname_error(JCC_BNAME_ERR_TOOLARGE),
+            JCC_CMDT_LIBRARY,
+            argv
+        );
+    }
+    strcat(jcc_bname, ".a");
+
+    char** args = (char**)argv;
+    int args_len = argc;
+    jcc_berror berr = {0};
+    if (bnstatus == JCC_BNAME_EXIST) {
+        if (argc - 1 < 1) {
+            #ifdef JCC_LOGS_
+                jcc_log_cmds(stdout, cmds);
+            #endif
+            berr = (jcc_berror){.type = JCC_BERROR_NOFILES};
+            jcc_log_berror(berr, JCC_CMDT_LIBRARY, argv);
+            goto defer;
+        }
+        args_len -= 1;
+        args = (char**)&argv[1];
+    }
+
+    berr = jcc_obj_cmds_build(cmds, args_len, args);
+    if (berr.type != JCC_BERROR_NONE) {
+        #ifdef JCC_LOGS_
+            jcc_log_cmds(stdout, cmds);
+        #endif
+        jcc_log_berror(berr, JCC_CMDT_LIBRARY, argv);
+        goto defer;
+    }
+
+    #ifdef JCC_LOGS_
+        jcc_log_cmds(stdout, cmds);
+    #endif
+    if (!jcc_exec_cmds(cmds)) {
+        goto defer;
+    }
+
+    for (int i = 0; i < args_len; i += 1) {
+        char* arg = args[i];
+        if (jcc_is_ext(arg, ".c")) {
+            size_t len = strlen(arg);
+            arg[len-1] = 'o';
+        }
+    }
+
+    cmds->len = 0;
+    jcc_cmds_append_buf(cmds, 3, (char const*const[]){"ar", "rcs", jcc_bname});
+    jcc_cmds_append_buf(cmds, args_len, (char const*const*)args);
+    jcc_cmds_append_null(cmds);
+    #ifdef JCC_LOGS_
+        jcc_log_cmds(stdout, cmds);
+    #endif
+    if (!jcc_exec_cmds(cmds)) {
+        goto defer;
+    }
+
+    cmds->len = 0;
+    jcc_cmds_append_item(cmds, "rm");
+    jcc_cmds_append_buf(cmds, args_len, (char const*const*)args);
+    jcc_cmds_append_null(cmds);
+    #ifdef JCC_LOGS_
+        jcc_log_cmds(stdout, cmds);
+    #endif
+    if (!jcc_exec_cmds(cmds)) {
+        goto defer;
+    }
+
+    jcc_cmds_free(cmds);
+    return EXIT_SUCCESS;
+
+    defer:
+    jcc_cmds_free(cmds);
+    return EXIT_FAILURE;
+}
+
+//returns EXIT_SUCCESS or EXIT_FAILURE
+int jcc_libshared(
+    jcc_cmds cmds[static 1],
+    int argc,
+    char*const argv[argc]
+) {
+    assert(argc > 0);
+
+    jcc_cmds cmds_cpy = {0};
+    jcc_cmds_append_buf(&cmds_cpy, cmds->len, (char const*const*)cmds->buf);
+
+    char jcc_bname[JCC_BUILD_NAME_LEN] = {0};
+    int bnstatus = jcc_set_bname(argv[0], jcc_bname);
+    if (bnstatus < 0) {
+        #ifdef JCC_LOGS_
+            jcc_log_cmds(stdout, cmds);
+        #endif
+        jcc_log_berror(
+            jcc_bname_error(bnstatus),
+            JCC_CMDT_LIBRARY,
+            argv
+        );
+        goto defer;
+    }
+    //set the '.so' at the end
+    if (strlen(jcc_bname) + 4 > JCC_BUILD_NAME_LEN) {
+        jcc_log_berror(
+            jcc_bname_error(JCC_BNAME_ERR_TOOLARGE),
+            JCC_CMDT_LIBRARY,
+            argv
+        );
+    }
+    strcat(jcc_bname, ".so");
+
+    char** args = (char**)argv;
+    int args_len = argc;
+    jcc_berror berr = {0};
+    if (bnstatus == JCC_BNAME_EXIST) {
+        if (argc - 1 < 1) {
+            #ifdef JCC_LOGS_
+                jcc_log_cmds(stdout, cmds);
+            #endif
+            berr = (jcc_berror){.type = JCC_BERROR_NOFILES};
+            jcc_log_berror(berr, JCC_CMDT_LIBRARY, argv);
+            goto defer;
+        }
+        args_len -= 1;
+        args = (char**)&argv[1];
+    }
+
+    jcc_cmds_append_item(cmds, "-fpic");
+    berr = jcc_obj_cmds_build(cmds, args_len, args);
+    if (berr.type != JCC_BERROR_NONE) {
+        #ifdef JCC_LOGS_
+            jcc_log_cmds(stdout, cmds);
+        #endif
+        jcc_log_berror(berr, JCC_CMDT_LIBRARY, argv);
+        goto defer;
+    }
+    #ifdef JCC_LOGS_
+        jcc_log_cmds(stdout, cmds);
+    #endif
+    if (!jcc_exec_cmds(cmds)) {
+        goto defer;
+    }
+
+    for (int i = 0; i < args_len; i += 1) {
+        char* arg = args[i];
+        if (jcc_is_ext(arg, ".c")) {
+            size_t len = strlen(arg);
+            arg[len-1] = 'o';
+        }
+    }
+
+    jcc_cmds_append_buf(&cmds_cpy, 3, (char const*const[]){
+        "-shared",
+        "-o",
+        jcc_bname
+    });
+    jcc_cmds_append_buf(&cmds_cpy, args_len, (char const*const*)args);
+    #ifdef JCC_LOGS_
+        jcc_log_cmds(stdout, &cmds_cpy);
+    #endif
+    if (!jcc_exec_cmds(&cmds_cpy)) {
+        goto defer;
+    }
+
+    jcc_cmds_free(cmds);
+    jcc_cmds_free(&cmds_cpy);
+    return EXIT_SUCCESS;
+
+    defer:
+    jcc_cmds_free(cmds);
+    jcc_cmds_free(&cmds_cpy);
+    return EXIT_FAILURE;
+}
+
+//we asume that there is at least 2 args
+int jcc_library(
+    jcc_cmds cmds[static 1],
+    int argc,
+    char*const argv[argc]
+) {
+    char const*const arg = argv[0];
+    if (strcmp(arg, "shared") == 0) {
+        return jcc_libshared(cmds, argc-1, &argv[1]);
+    } else if (strcmp(arg, "static") == 0) {
+        return jcc_libstatic(cmds, argc-1, &argv[1]);
+    }
+    fprintf(stderr, "ERROR Bad command format\n");
+    JCC_log_help_library();
+    return EXIT_FAILURE;
 }
 
 //returns EXIT_SUCCESS or EXIT_FAILURE
@@ -1016,38 +1142,52 @@ int jcc_init(
                     jcc_help(argc - 2, &argv[2]);
                 }
                 return EXIT_SUCCESS;
+
             } else if (JCC_CMDT_BUILD == i) {
-                if (argc - 2 < 1) {
+                if (argc - 3 < 0) {
                     fprintf(stderr, "ERROR Bad command format\n");
                     JCC_log_help_build();
                     return EXIT_FAILURE;
                 }
                 return jcc_build(cmds, argc - 2, &argv[2]);
+
             } else if (JCC_CMDT_BRUN == i) {
-                if (argc - 2 < 1) {
+                if (argc - 3 < 0) {
                     fprintf(stderr, "ERROR Bad command format\n");
                     JCC_log_help_brun();
                     return EXIT_FAILURE;
                 }
                 return jcc_brun(cmds, argc - 2, &argv[2]);
+
             } else if (JCC_CMDT_RUN == i) {
-                if (argc - 2 < 1) {
+                if (argc - 3 < 0) {
                     fprintf(stderr, "ERROR Bad command format\n");
                     JCC_log_help_run();
                     return EXIT_FAILURE;
                 }
                 return jcc_run(cmds, argc - 2, &argv[2]);
-            } else if (JCC_CMDT_OBJ == i) {
-                if (argc - 2 < 1) {
+
+            } else if (JCC_CMDT_OBJECT == i) {
+                if (argc - 3 < 0) {
                     fprintf(stderr, "ERROR Bad command format\n");
-                    JCC_log_help_obj();
+                    JCC_log_help_object();
                     return EXIT_FAILURE;
                 }
-                return jcc_obj(cmds, argc - 2, &argv[2]);
+                return jcc_object(cmds, argc - 2, &argv[2]);
+
+            } else if (JCC_CMDT_LIBRARY) {
+                if (argc - 4 < 0) {
+                    fprintf(stderr, "ERROR Bad command format\n");
+                    JCC_log_help_library();
+                    return EXIT_FAILURE;
+                }
+                return jcc_library(cmds, argc - 2, &argv[2]);
+
             } else if (JCC_CMDT_DEFAULTS == i) {
                 fprintf(stdout, "%s %s: ", JCC_NAME, jcc_strcmds[JCC_CMDT_DEFAULTS]);
                 jcc_log_cmds(stdout, cmds);
-                return 0;
+                return EXIT_SUCCESS;
+
             } else if (JCC_CMDT_VERSION == i) {
                 fprintf(
                     stdout,
