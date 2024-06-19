@@ -12,7 +12,8 @@
 #include <errno.h>
 #include <unistd.h>
 
-#define JCC_LOGS_
+//#define JCC_LOGS_
+
 #define JCC_VERSION     "0.0.1"
 #define JCC_COMPILER    "gcc"
 
@@ -598,7 +599,6 @@ jcc_berror jcc_general_cmds_build(
         i += 1;
     }
     jcc_cmds_append_buf(cmds, 2, (char const*[]){"-o", jcc_bname});
-
     //files
     _Bool files_exist = (_Bool)0;
     while (i < argc && strncmp(argv[i], "-", 1) != 0) {
@@ -618,6 +618,8 @@ jcc_berror jcc_general_cmds_build(
 
         jcc_cmds_append_item(cmds, arg);
         files_exist = (_Bool)1;
+
+        i += 1;
     }
     if (!files_exist) {
         return (jcc_berror){.type=JCC_BERROR_NOFILES};
@@ -655,13 +657,13 @@ jcc_berror jcc_general_cmds_build(
                 jcc_cmds_append_buf(cmds, 2, (char const*[]){"-l", argv[i]});
             }
             i += 1;
-        } else {
-            return (jcc_berror){
-                .type=JCC_BERROR_OPTION_INVALID,
-                .argv_i=i,
-            };
         }
+        return (jcc_berror){
+            .type=JCC_BERROR_OPTION_INVALID,
+            .argv_i=i,
+        };
     }
+
     return (jcc_berror){.type=JCC_BERROR_NONE, .argv_i=-1};
 }
 
@@ -887,6 +889,7 @@ int jcc_object(
     char*const argv[argc]
 ) {
     assert(argc > 0);
+
     jcc_berror berr = jcc_obj_cmds_build(cmds, argc, argv);
     if (berr.type != JCC_BERROR_NONE) {
         #ifdef JCC_LOGS_
@@ -898,11 +901,14 @@ int jcc_object(
     #ifdef JCC_LOGS_
         jcc_log_cmds(stdout, cmds);
     #endif
+
     if (!jcc_exec_cmds(cmds)) {
         goto defer;
     }
+
     jcc_cmds_free(cmds);
     return EXIT_SUCCESS;
+
     defer:
     jcc_cmds_free(cmds);
     return EXIT_FAILURE;
