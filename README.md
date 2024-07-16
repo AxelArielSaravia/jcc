@@ -31,14 +31,16 @@ Example: `jcc_init.c`
 #include "./jcc.c"
 
 int main(int argc, char* argv[argc]) {
-    jcc_cmds defaults = jcc_cmds_create(5, (char const* const[]){
+    //must be a null terminated array
+    char const*const defaults[] = {
         "-std=c23",
         "-O2",
         "-Wall",
         "-Wextra",
-        "-D_FORTIFY_SOURCE=2"
+        "-D_FORTIFY_SOURCE=2",
+        0
     });
-    return jcc_init(&defaults, argc, argv);
+    return jcc_init(defaults, argc, argv);
 }
 ```
 3. Compile the `jcc_init.c` file. The project uses some C11 features, so it
@@ -49,8 +51,9 @@ must be compiled with `-std=c11`. The last GCC compiler's default standard is C1
 
 **Voilà**
 
-You only need these two functions: `jcc_cmds_create()` where you put all the
-default options, and `jcc_init()` for the magic.
+You only need these function `jcc_init()` and an null terminated array of
+default commands.
+You can pass the a null pointer insted of the array to use the gcc defaults.
 
 
 ## Customization
@@ -64,10 +67,11 @@ Example 'c99.c':
 #include "./jcc.c"
 
 int main(int argc, char* argv[argc]) {
-    jcc_cmds defaults = jcc_cmds_create(1, (char const* const[]){
+    char const*const defaults[] = {
         "-std=c99",
-    });
-    return jcc_init(&defaults, argc, argv);
+        0
+    };
+    return jcc_init(defaults, argc, argv);
 }
 ```
 Now when you call `c99 help [commands]` *c99* appears as the name of the
