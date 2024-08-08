@@ -96,8 +96,7 @@ void jcc_cmds_free(jcc_cmds* cmds) {
 
 size_t jcc_defaults_len(char const*const* defaults) {
     size_t r = 0;
-    while (defaults) {
-        defaults = &defaults[r];
+    while (defaults[r]) {
         r += 1;
     }
     return r;
@@ -1254,6 +1253,7 @@ int jcc_init(
                 cmds = jcc_cmds_create(cmds_len, defaults);
                 return jcc_library(&cmds, argc - 2, &argv[2]);
             }
+
             if (JCC_CMDT_DEFAULTS == i) {
                 fprintf(stdout, "%s %s: ", JCC_NAME, jcc_strcmds[JCC_CMDT_DEFAULTS]);
                 cmds_len = jcc_defaults_len(defaults);

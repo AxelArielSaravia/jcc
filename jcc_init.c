@@ -2,7 +2,6 @@
 
 #include "./jcc.c"
 
-
 int main(int argc, char* argv[argc]) {
     char const*const defaults[] = {
         "-std=c23",
