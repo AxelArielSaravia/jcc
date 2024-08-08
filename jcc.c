@@ -15,7 +15,7 @@
 
 //#define JCC_LOGS_
 
-#define JCC_VERSION     "0.0.1"
+#define JCC_VERSION     "dev-2024-08"
 #define JCC_COMPILER    "gcc"
 
 #define JCC_NAME_FULL   "Just Compile my C"
